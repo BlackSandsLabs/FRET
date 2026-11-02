@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FRET — Forensic Radio Examination Tool</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="3" fill="currentColor"/><path d="M9.5 9.5a9.2 9.2 0 0 0 0 13M22.5 9.5a9.2 9.2 0 0 1 0 13M5.6 5.6a14.7 14.7 0 0 0 0 20.8M26.4 5.6a14.7 14.7 0 0 1 0 20.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+      <div><div class="wordmark">FRET</div><div class="tagline">Forensic Radio Examination</div></div>
+    </div>
+    <nav id="nav">
+      <button data-view="survey" class="on"><i data-ico="radar"></i>Survey</button>
+      <button data-view="devices"><i data-ico="list"></i>Devices<span class="pill" id="navCount">0</span></button>
+      <button data-view="case"><i data-ico="folder"></i>Case<span class="dot" id="navRec"></span></button>
+      <button data-view="settings"><i data-ico="gear"></i>Settings</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="recv card" id="recv"></div>
+  </aside>
+
+  <main>
+    <header class="top">
+      <div>
+        <div class="eyebrow" id="eyebrow">LIVE SURVEY</div>
+        <h1 id="title">Survey</h1>
+      </div>
+      <div class="spacer"></div>
+      <label class="search"><i data-ico="search"></i><input id="q" placeholder="Search MAC, make, model, SSID…" autocomplete="off"></label>
+      <div class="chip" id="srcChip"></div>
+      <button class="chip rec" id="caseChip"></button>
+    </header>
+
+    <!-- SURVEY -->
+    <section class="view on" id="v-survey">
+      <div class="kpis" id="kpis"></div>
+      <div class="grid2">
+        <div class="card radar-card">
+          <div class="sechead"><span>Estimated range from receiver</span><span class="muted" id="envLabel"></span></div>
+          <div class="radar-wrap"><svg id="radar" viewBox="-310 -310 620 620"></svg><div class="tip" id="tip"></div></div>
+          <div class="radar-foot">Distance from signal strength only. A single receiver can't measure direction, so angle is arbitrary. Each arc shows the likely range.</div>
+        </div>
+        <div class="col">
+          <div class="card">
+            <div class="sechead"><span>Nearest devices</span><button class="link" data-goto="devices">View all</button></div>
+            <div id="nearest"></div>
+          </div>
+          <div class="card">
+            <div class="sechead"><span>Receiver activity</span><span class="muted mono" id="actNow"></span></div>
+            <svg id="spark" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+            <div class="legend"><span><b class="sw" style="background:var(--accent)"></b>Wi-Fi frames/s</span><span><b class="sw" style="background:var(--lab)"></b>BLE adverts/s</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEVICES -->
+    <section class="view" id="v-devices">
+      <div class="filters" id="filters"></div>
+      <div class="split">
+        <div class="card tablecard">
+          <table class="tbl">
+            <thead><tr>
+              <th data-sort="make">Device</th><th data-sort="mac">Address</th>
+              <th data-sort="range">Est. distance</th><th data-sort="rssi">Signal</th><th data-sort="age">Seen</th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <div class="empty" id="emptyRows" hidden><i data-ico="radar"></i><b>Listening…</b>Devices appear here as the receiver hears them.</div>
+        </div>
+        <aside class="drawer card" id="drawer"><div class="empty"><i data-ico="cursor"></i><b>No device selected</b>Pick a device to see evidence, range and notes.</div></aside>
+      </div>
+    </section>
+
+    <!-- CASE -->
+    <section class="view" id="v-case"><div id="caseBody"></div></section>
+
+    <!-- SETTINGS -->
+    <section class="view" id="v-settings"><div id="settingsBody" class="settings"></div></section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<div class="modal" id="modal" hidden></div>
+<script src="mock.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

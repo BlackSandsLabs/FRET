@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+build/
+dist/
+*.spec
+*.egg-info/
+
+# PlatformIO
+firmware/.pio/
+firmware/.vscode/
+firmware/boot_log.txt
+
+# FRET runtime data (never commit case data)
+FRET Cases/
+*.db
+preview.html
+
+# OS / editors
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

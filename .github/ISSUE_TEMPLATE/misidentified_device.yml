@@ -1,0 +1,24 @@
+name: Misidentified device
+description: FRET labelled a device wrongly or couldn't identify it
+labels: [identification]
+body:
+  - type: input
+    id: actual
+    attributes:
+      label: What the device actually is
+      placeholder: "e.g. Reolink E1 Pro camera, Samsung Galaxy S24"
+    validations:
+      required: true
+  - type: input
+    id: shown
+    attributes:
+      label: What FRET showed (type, make, model hint)
+      placeholder: "IoT / smart device · Shenzhen ... · (none)"
+    validations:
+      required: true
+  - type: textarea
+    id: reasons
+    attributes:
+      label: Reasons and broadcast details
+      description: Copy the Identification reasons and Broadcast details from the device panel. The first 3 bytes of the MAC are enough.
+      render: text
