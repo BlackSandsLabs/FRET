@@ -7,4 +7,4 @@ the terms of the GNU General Public License as published by the Free Software
 Foundation, either version 3 of the License, or (at your option) any later
 version. It is distributed WITHOUT ANY WARRANTY; see the LICENSE file.
 """
-__version__ = "1.2.0"
+__version__ = "1.2.1"

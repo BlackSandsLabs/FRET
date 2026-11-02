@@ -122,7 +122,8 @@ function hashAngle(s) { let h = 2166136261; for (const c of s) h = Math.imul(h ^
 function renderRecv() {
   const st = S.state, src = st.source, stat = src.status || {}, h = src.hello || {};
   const cls = src.kind === 'demo' ? 'demo' : src.connected ? 'ok' : '';
-  const name = src.kind === 'demo' ? 'Demo receiver' : (h.board || 'StickS3');
+  const model = st.receivers && st.receivers[st.settings.receiver];
+  const name = src.kind === 'demo' ? 'Demo receiver' : (h.board || model || 'Receiver');
   $('#recv').innerHTML = `<div class="hd"><span class="st ${cls}"></span>${esc(name)}</div>
     ${src.connected ? `
     <div class="kv">Channel<b>${stat.ch ?? '–'} ${stat.hop === false ? '(locked)' : '· hopping'}</b></div>
@@ -288,7 +289,7 @@ function renderDrawer(full) {
   </div>
   <div class="dsec"><h3>Examiner note</h3><textarea class="note" id="dNote" placeholder="Add an observation (saved to the case audit trail)">${esc(d.note)}</textarea></div>`;
   $('#dFlag').onclick = async () => { await api('annotate', d.key, null, !d.flagged); await tick(); renderDrawer(true); };
-  $('#dCal').onclick = () => confirmModal('Calibrate range at 1 m', 'Place this device 1 metre from the StickS3 with a clear line of sight. FRET will use its current signal level as the 1 m reference for all ' + (d.medium === 'ble' ? 'Bluetooth' : 'Wi-Fi') + ' devices.', 'Calibrate', async () => { const res = await api('calibrate', d.key, 1.0); if (!res.ok) toast(res.error); });
+  $('#dCal').onclick = () => confirmModal('Calibrate range at 1 m', 'Place this device 1 metre from the receiver stick with a clear line of sight. FRET will use its current signal level as the 1 m reference for all ' + (d.medium === 'ble' ? 'Bluetooth' : 'Wi-Fi') + ' devices.', 'Calibrate', async () => { const res = await api('calibrate', d.key, 1.0); if (!res.ok) toast(res.error); });
   $('#dCopy').onclick = () => { navigator.clipboard?.writeText(d.mac); toast('MAC copied'); };
   let t; $('#dNote').oninput = e => { clearTimeout(t); t = setTimeout(() => api('annotate', d.key, e.target.value, null), 600); };
   updateDrawerLive(d);
@@ -334,7 +335,7 @@ function renderCase(full) {
       <div class="col"><div class="card"><div class="sechead"><span>What gets recorded</span></div>
         <div class="notice">Every frame and advertisement the receiver forwards is written to a SQLite log with a UTC timestamp, together with an audit trail of examiner actions (settings, calibration, notes, flags, exports).<br><br>
         Exports produce a device table (CSV, JSON), the raw observation log, and an HTML report. Each file is SHA-256 hashed into <span class="mono">SHA256SUMS.txt</span> and the audit trail.<br><br>
-        Collection is passive. The StickS3 only listens and never transmits to or connects with any device.</div></div>
+        Collection is passive by default. The receiver stick only listens and never connects to any device; the optional active Bluetooth scan is the only thing that transmits, and it is logged.</div></div>
         <div class="card"><div class="sechead"><span>Case folders</span></div><div class="muted" style="font-size:13px;margin-bottom:10px">Saved under Documents\\FRET Cases</div><button class="btn" id="fOpen">${ico('open')}Open folder</button></div></div>
     </div>`;
     $('#fStart').onclick = async () => {
@@ -371,12 +372,16 @@ function dur(iso) { const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000)
 function renderSettings(full) {
   const st = S.state; if (!st || !full) return;
   const s = st.settings, src = st.source, stat = src.status || {};
-  const portOpts = [['auto', 'Auto-detect StickS3'], ...S.ports.map(p => [p.device, `${p.device} — ${p.description}${p.likely ? ' ★' : ''}`]), ['demo', 'Demo (simulated devices)']];
-  const cur = src.kind === 'demo' ? 'demo' : 'auto';
+  const rx = st.receivers || {};
+  const rxSel = s.receiver || 'auto';
+  const portOpts = [['auto', 'Auto-detect the stick'], ...S.ports.map(p => [p.device, `${p.device} — ${p.board_name || p.description}${p.board_name ? ' ★' : (p.likely ? ' (USB serial)' : '')}`]), ['demo', 'Demo (simulated devices)']];
+  const cur = src.kind === 'demo' ? 'demo' : (src.selection || 'auto');
   $('#settingsBody').innerHTML = `
   <div class="card"><div class="sechead"><span>Receiver</span></div>
+    <div class="field"><label>Receiver model</label><div class="seg" id="sRx">${[['auto', 'Auto'], ...Object.entries(rx)].map(([k, l]) => `<button data-v="${k}" class="${rxSel === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>
+      <div class="hint">Auto finds either stick. Choose a model if more than one USB serial device is plugged in. Once connected, the stick reports its own model on the receiver card.</div></div>
     <div class="field"><label>Source</label><select id="sSrc">${portOpts.map(([v, l]) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
-      <div class="hint">Connect the StickS3 by USB-C. It shows up as an Espressif USB serial device.</div></div>
+      <div class="hint">Connect the stick by USB-C. The M5StickC Plus2 appears as a CH9102 USB serial port (install the WCH CH9102 driver if no port is listed); the StickS3 appears as an Espressif USB device.</div></div>
     <div class="field"><label>Wi-Fi channel</label><select id="sCh"><option value="AUTO">Hop all channels 1–13</option>${Array.from({ length: 13 }, (_, i) => `<option value="${i + 1}" ${stat.hop === false && stat.ch === i + 1 ? 'selected' : ''}>Lock to channel ${i + 1}</option>`).join('')}</select>
       <div class="hint">Lock to one channel to follow a single device more closely, e.g. a camera on its access point's channel.</div></div>
     <div class="field"><label>Dwell per channel: <span id="sDwV">${s.dwell_ms}</span> ms</label><input type="range" id="sDw" min="100" max="1000" step="50" value="${s.dwell_ms}"></div>
@@ -404,6 +409,7 @@ function renderSettings(full) {
   <div class="card full"><div class="sechead"><span>About</span></div><div class="notice">FRET ${esc(st.version)}. Make comes from the IEEE registry entry for the address prefix. Modern phones randomise their Wi-Fi and Bluetooth addresses, which have no registry entry, so FRET classifies them from behaviour and broadcast content instead and shows its reasoning. Model names appear only when a device broadcasts them, through WPS, a Bluetooth name or Apple Continuity.</div></div>`;
   const set = (k, v) => api('set_setting', k, v);
   $('#sSrc').onchange = e => { api('use_source', e.target.value); toast('Switching source…'); };
+  $('#sRx').querySelectorAll('button').forEach(b => b.onclick = async () => { await set('receiver', b.dataset.v); $('#sRx').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); S.ports = await api('list_ports') || []; toast(b.dataset.v === 'auto' ? 'Detecting either receiver' : 'Looking for ' + rx[b.dataset.v]); });
   $('#sCh').onchange = e => api('send_command', 'CH ' + e.target.value);
   $('#sDw').oninput = e => $('#sDwV').textContent = e.target.value;
   $('#sDw').onchange = e => set('dwell_ms', +e.target.value);

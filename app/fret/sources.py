@@ -1,4 +1,4 @@
-"""Capture sources: the StickS3 over USB serial, or a built-in demo."""
+"""Capture sources: an M5StickC Plus2 / StickS3 receiver over USB serial, or a built-in demo."""
 from __future__ import annotations
 
 import json
@@ -14,21 +14,37 @@ Callback = Callable[[dict[str, Any]], None]
 ESPRESSIF_VID = 0x303A
 USB_SERIAL_VIDS = {0x1A86, 0x10C4, 0x0403}  # WCH CH9102/CH340, Silicon Labs CP210x, FTDI
 BAUD = 921600
+WCH_VID = 0x1A86  # CH9102 on the M5StickC Plus2
+
+# Supported receivers: id -> (display name, preferred USB vendor IDs)
+RECEIVERS = {
+    "plus2": ("M5StickC Plus2", {WCH_VID}),
+    "sticks3": ("M5Stack StickS3", {ESPRESSIF_VID}),
+}
 
 
-def list_ports() -> list[dict[str, str]]:
+def board_hint(vid: int | None) -> str:
+    if vid == ESPRESSIF_VID:
+        return "sticks3"
+    if vid == WCH_VID:
+        return "plus2"
+    return ""
+
+
+def list_ports(prefer: str = "auto") -> list[dict[str, Any]]:
     try:
         from serial.tools import list_ports as lp
     except ImportError:
         return []
     out = []
     for p in lp.comports():
+        hint = board_hint(p.vid)
         out.append({
             "device": p.device, "description": p.description or "",
             "likely": bool(p.vid == ESPRESSIF_VID or p.vid in USB_SERIAL_VIDS or "ESP32" in (p.description or "").upper()),
-            "espressif": p.vid == ESPRESSIF_VID,
+            "board": hint, "board_name": RECEIVERS[hint][0] if hint else "",
         })
-    out.sort(key=lambda x: (not x["espressif"], not x["likely"]))
+    out.sort(key=lambda x: (not (prefer != "auto" and x["board"] == prefer), not x["board"], not x["likely"]))
     return out
 
 
@@ -70,9 +86,10 @@ class Source:
 class SerialSource(Source):
     name = "serial"
 
-    def __init__(self, cb: Callback, port: str | None = None):
+    def __init__(self, cb: Callback, port: str | None = None, prefer: str = "auto"):
         super().__init__(cb)
         self.port = port
+        self.prefer = prefer
         self._ser = None
         self._wlock = threading.Lock()
 
@@ -87,7 +104,11 @@ class SerialSource(Source):
     def _pick_port(self) -> str | None:
         if self.port:
             return self.port
-        ports = list_ports()
+        ports = list_ports(self.prefer)
+        if self.prefer != "auto":
+            match = [p for p in ports if p["board"] == self.prefer]
+            if match:
+                return match[0]["device"]
         likely = [p for p in ports if p["likely"]]
         return likely[0]["device"] if likely else None
 
@@ -97,7 +118,8 @@ class SerialSource(Source):
         while self.running:
             port = self._pick_port()
             if not port:
-                self.connected, self.error = False, "Receiver not found - plug the stick in with a data USB-C cable"
+                want = RECEIVERS[self.prefer][0] if self.prefer in RECEIVERS else "M5StickC Plus2 / StickS3"
+                self.connected, self.error = False, f"{want} not found - plug the stick in with a data USB-C cable"
                 time.sleep(1.5)
                 continue
             try:
@@ -171,7 +193,7 @@ class DemoSource(Source):
         self.oui = oui
         self.channel = 1
         self.devices = self._scenario()
-        self.hello = {"t": "hello", "fw": "DEMO", "board": "Simulated StickS3", "self": "DE:MO:00:00:00:00"}
+        self.hello = {"t": "hello", "fw": "DEMO", "board": "Simulated receiver", "self": "DE:MO:00:00:00:00"}
 
     def _mac(self, pattern: str | None, randomized: bool = False) -> str:
         r = self.rng

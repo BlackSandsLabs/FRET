@@ -8,7 +8,7 @@
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-33c7d9?style=flat-square&logo=python&logoColor=white">
   <img alt="Hardware" src="https://img.shields.io/badge/receiver-M5StickC%20Plus2%20%7C%20StickS3-ff9e42?style=flat-square">
   <img alt="Firmware" src="https://img.shields.io/badge/firmware-PlatformIO%20%2F%20Arduino-8c8cff?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.2.0-4dd980?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.2.1-4dd980?style=flat-square">
   <img alt="Licence" src="https://img.shields.io/badge/licence-GPL--3.0-f27ec2?style=flat-square">
 </p>
 

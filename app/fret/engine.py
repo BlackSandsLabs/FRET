@@ -14,12 +14,13 @@ from .case import Case
 from .distance import calibrate_ref
 from .oui import OuiDb
 from .paths import cases_dir, data_dir
-from .sources import DemoSource, SerialSource, Source, list_ports
+from .sources import RECEIVERS, DemoSource, SerialSource, Source, list_ports
 from .tracker import Tracker
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "environment": "indoor",
     "ref_1m": {"wifi": -40.0, "ble": -59.0},
+    "receiver": "auto",
     "dwell_ms": 250,
     "ble_active": False,
     "stale_after_s": 120,
@@ -44,6 +45,7 @@ class Engine:
         self.source: Source | None = None
         self.started = time.time()
         self.toast = ""
+        self.selection = "auto"
         self._flusher = threading.Thread(target=self._flush_loop, daemon=True)
         self._flusher.start()
         self.use_source("demo" if demo else (port or "auto"))
@@ -88,7 +90,9 @@ class Engine:
             "source": {
                 "kind": s.name if s else "none", "connected": bool(s and s.connected),
                 "error": s.error if s else "", "hello": s.hello if s else {}, "status": s.status if s else {},
+                "selection": self.selection,
             },
+            "receivers": {k: v[0] for k, v in RECEIVERS.items()},
             "devices": devices,
             "counts": counts,
             "total_records": self.tracker.total_records,
@@ -107,17 +111,19 @@ class Engine:
         t, self.toast = self.toast, ""
         return t
 
-    def list_ports(self) -> list[dict[str, str]]:
-        return list_ports()
+    def list_ports(self) -> list[dict[str, Any]]:
+        return list_ports(self.settings.get("receiver", "auto"))
 
     def use_source(self, which: str) -> dict[str, Any]:
         if self.source:
             self.source.stop()
         self.tracker.clear()
+        self.selection = which
         if which == "demo":
             self.source = DemoSource(self._on_record, oui=self.oui)
         else:
-            self.source = SerialSource(self._on_record, None if which == "auto" else which)
+            self.source = SerialSource(self._on_record, None if which == "auto" else which,
+                                       prefer=self.settings.get("receiver", "auto"))
         self.source.start()
         if self.case:
             self.case.audit("source_changed", which)
@@ -178,6 +184,8 @@ class Engine:
             self.send_command(f"DWELL {int(value)}")
         if key == "ble_active":
             self.send_command("BLE ACTIVE" if value else "BLE PASSIVE")
+        if key == "receiver" and self.selection == "auto":
+            self.use_source("auto")  # re-detect using the chosen model
         for d in self.tracker.devices.values():
             d.dirty = True
         if self.case:

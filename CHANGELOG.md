@@ -2,6 +2,16 @@
 
 All notable changes to FRET are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-11-03
+
+### Added
+- **Receiver model** choice in Settings → Receiver: *Auto*, *M5StickC Plus2* or *M5Stack StickS3*. Auto-detect prefers the chosen model's USB chip (CH9102 for the Plus2, Espressif USB for the StickS3).
+- The Source list names detected sticks (e.g. *COM7 — M5StickC Plus2 ★*).
+
+### Fixed
+- The app's wording assumed a StickS3 everywhere ("Auto-detect StickS3", setup hints, receiver card). It now covers both receivers, and the receiver card shows the model the stick reports.
+- The Source dropdown now shows the selected COM port instead of jumping back to Auto.
+
 ## [1.2.0] - 2026-11-02
 
 ### Added

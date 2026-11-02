@@ -118,7 +118,8 @@ See [Evidence handling](EVIDENCE.md) for the folder layout and how to verify has
 
 | Setting | Notes |
 |---|---|
-| **Source** | Auto-detect, a specific COM port, or Demo |
+| **Receiver model** | *Auto* (default), *M5StickC Plus2* or *M5Stack StickS3*. Auto finds either stick. Pick a model when several USB serial devices are plugged in, so FRET connects to the right one |
+| **Source** | Auto-detect, a specific COM port (detected sticks are named and starred), or Demo |
 | **Wi-Fi channel** | *Hop all channels 1–13* (default) or lock to one channel. Lock to a camera's or router's channel to catch more of its traffic |
 | **Dwell per channel** | 100–1000 ms (default 250). Longer catches more from busy channels but sweeps more slowly |
 | **Bluetooth LE scanning** | On or off |
