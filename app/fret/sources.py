@@ -113,7 +113,12 @@ class SerialSource(Source):
         return likely[0]["device"] if likely else None
 
     def _run(self) -> None:
-        import serial  # pyserial
+        try:
+            import serial  # pyserial
+        except ImportError:
+            self.connected = False
+            self.error = "pyserial is missing - close FRET and run app\\setup_windows.bat"
+            return
 
         while self.running:
             port = self._pick_port()

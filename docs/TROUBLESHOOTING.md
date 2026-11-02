@@ -14,6 +14,7 @@
 | `'py' is not recognized` / `python not found` | Reinstall Python and tick **Add python.exe to PATH**, then open a new window |
 | `setup_windows.bat` fails installing `pywebview` | Update pip with `app\.venv\Scripts\python -m pip install -U pip`, then re-run setup. On a corporate network, configure the proxy for pip |
 | FRET window is blank or doesn't open | Install the Microsoft Edge **WebView2 Runtime**. As a workaround, run `app\.venv\Scripts\python app\run_fret.py --browser` to use your web browser |
+| `ModuleNotFoundError: No module named 'serial'` (or `'webview'`) | FRET was started without its Python environment, e.g. after replacing the `app` folder or by running `run_fret.py` directly. Run `app\setup_windows.bat` once, and always start FRET with `FRET.bat`, which repairs the environment automatically from 1.2.1 |
 | `FRET.bat` does nothing | Run `app\.venv\Scripts\python app\run_fret.py` from Command Prompt to see the error |
 
 ## Flashing

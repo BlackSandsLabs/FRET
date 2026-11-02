@@ -9,6 +9,7 @@ All notable changes to FRET are listed here. The format follows [Keep a Changelo
 - The Source list names detected sticks (e.g. *COM7 — M5StickC Plus2 ★*).
 
 ### Fixed
+- `FRET.bat`, `FRET_demo.bat` and `capture_log.bat` now set up or repair FRET's Python environment automatically, fixing `ModuleNotFoundError: No module named 'serial'` after replacing the `app` folder. If pyserial is still missing, the receiver card says so instead of failing silently.
 - The app's wording assumed a StickS3 everywhere ("Auto-detect StickS3", setup hints, receiver card). It now covers both receivers, and the receiver card shows the model the stick reports.
 - The Source dropdown now shows the selected COM port instead of jumping back to Auto.
 
