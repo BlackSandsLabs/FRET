@@ -12,6 +12,9 @@ All notable changes to FRET are listed here. The format follows [Keep a Changelo
 - More network-equipment vendors (NetComm, Kaon, Humax, ZTE, Nokia and others) and SAMJIN (SmartThings) as IoT.
 - Firmware command `BLE ACTIVE` / `BLE PASSIVE`, and the `blea` field in `stat`.
 
+### Fixed
+- Ending a case now closes `case.db`. Previously Windows kept the file locked until FRET exited.
+
 ### Changed
 - Broadcasting beacons is now strong evidence for *Access point*, so routers made by PC brands (e.g. ASUS) are no longer typed as computers.
 - WPS "category 0" (unspecified) is ignored instead of being shown.

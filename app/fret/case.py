@@ -100,6 +100,8 @@ class Case:
             self.db.execute("INSERT OR REPLACE INTO case_info VALUES ('ended_utc', ?)", (self.ended,))
             self.db.commit()
         self.audit("case_closed", f"{self.obs_count} observations")
+        with self.lock:
+            self.db.close()  # release the file (Windows locks open SQLite files)
 
     # ------------------------------------------------------------------
     def export(self, devices: list[dict[str, Any]], settings: dict[str, Any]) -> dict[str, Any]:
