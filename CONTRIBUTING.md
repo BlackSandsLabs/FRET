@@ -12,7 +12,7 @@ Thanks for helping improve FRET. Bug reports, identification improvements and do
 ## Development setup
 
 ```bash
-git clone https://github.com/<your-account>/FRET.git
+git clone https://github.com/BlackSandsLabs/FRET.git
 cd FRET/app
 python -m venv .venv
 .venv\Scripts\activate          # Windows   (source .venv/bin/activate on Linux/macOS)

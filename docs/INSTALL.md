@@ -36,7 +36,7 @@ Pick one:
 - **Git:**
 
   ```bat
-  git clone https://github.com/<your-account>/FRET.git
+  git clone https://github.com/BlackSandsLabs/FRET.git
   ```
 
 Avoid putting it in a folder that syncs constantly (some OneDrive setups) while capturing, because the case database is written every second.

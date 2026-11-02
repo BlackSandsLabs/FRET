@@ -3,6 +3,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/BlackSandsLabs/FRET/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/BlackSandsLabs/FRET/actions/workflows/tests.yml/badge.svg"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0a0f17?style=flat-square&logo=windows">
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-33c7d9?style=flat-square&logo=python&logoColor=white">
   <img alt="Hardware" src="https://img.shields.io/badge/receiver-M5StickC%20Plus2%20%7C%20StickS3-ff9e42?style=flat-square">
