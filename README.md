@@ -77,7 +77,7 @@ Everything is recorded to a timestamped case log with an audit trail and SHA-256
 <td width="50%"><img src="docs/images/survey-triangulate.png" alt="Triangulate mode"><br><sub><b>Triangulate mode</b>: after a walk (dotted track), each device has a position and a 95% confidence ellipse. The selected device shows its distance, bearing and accuracy.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/images/devices.png" alt="Devices view"><br><sub><b>Devices</b>: a sortable, filterable list with the detail panel. This Hikvision camera was identified from its registered address and its WPS model.</sub></td>
+<td width="50%"><img src="docs/images/devices.png" alt="Devices view"><br><sub><b>Devices</b>: a sortable, filterable list with the detail panel. This Hikvision camera was identified from its registered address and its WPS model, and triangulated to 11 m east of the examiner after a walk.</sub></td>
 <td width="50%"><img src="docs/images/devices-cctv-filter.png" alt="CCTV filter"><br><sub><b>CCTV filter</b>: one click shows only cameras.</sub></td>
 </tr>
 <tr>
