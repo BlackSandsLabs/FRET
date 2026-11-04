@@ -7,6 +7,7 @@
 - [Device type classification](#device-type-classification)
 - [Linking addresses](#linking-addresses)
 - [Distance estimation](#distance-estimation)
+- [Triangulation from a walk](#triangulation-from-a-walk)
 
 ---
 
@@ -133,4 +134,28 @@ FRET calculates three distances:
 
 **Calibration** inverts the model at a known distance with `n = 2`, giving `RSSI(1 m) = median + 20 · log10(d)`.
 
-One receiver gives range only. Direction needs either several receivers (trilateration, on the roadmap) or a directional antenna.
+One receiver at one spot gives range only. Direction comes from moving the receiver (see below), from several receivers (on the roadmap) or from a directional antenna.
+
+---
+
+## Triangulation from a walk
+
+In **Triangulate** mode the receiver becomes the moving part. FRET takes the examiner's position (Windows location, a tap on the map, or the demo walk), expressed in metres east and north of where the walk started, and solves for where each device must be to explain the readings.
+
+**Collecting.** Once a second, each device heard in the last 1.5 s adds one sample `(x, y, RSSI)`. Samples are grouped into 1.5 m spots, and each spot keeps its median RSSI. A spot's weight is `1 / (16 + 16 / k)` for `k` readings, so it never counts as more certain than about ±4 dB, the typical shadowing from walls and bodies. GPS fixes worse than ±30 m are not sampled.
+
+**Solving.** For each point `p` on a 64 × 64 grid covering the walk plus the likely range:
+
+```
+r'ᵢ = RSSIᵢ + 10 · n · log10(|p − spotᵢ|)          (what each spot implies RSSI(1 m) is)
+A*  = weighted mean of r'ᵢ, plus the calibrated RSSI(1 m) as a pseudo-reading with σ = 10 dB
+cost(p) = Σ wᵢ (r'ᵢ − A*)² + (A* − A₀)² / 100
+```
+
+The reference level is fitted, not assumed, so a poor 1 m calibration doesn't pull the position, only the prior. The point with the lowest cost is the **estimate**. `n` is the environment's middle exponent.
+
+**Uncertainty.** The cost becomes a likelihood `exp(−(cost − min) / 2)` over the grid. Its second moments about the estimate give a covariance, whose eigenvectors set the ellipse, and `2.45 σ` along each axis is the **95% ellipse**. The ellipse is measured about the best point, not the mean, so a mirror ambiguity (a straight-line walk can't tell left from right) widens it instead of putting the point between the two answers. The rating uses the long axis: *good* ≤ 6 m, *fair* ≤ 15 m, otherwise *rough* (also if the best point is on the grid's edge).
+
+**Minimum data.** At least 8 readings from 4 spots, spread over at least 3 m.
+
+**Map and frame.** Positions use a flat local frame (metres from the walk origin), which is accurate over survey distances. Satellite imagery is Esri World Imagery in Web Mercator tiles, scaled to the same metres per pixel. The demo engine places each simulated device on a fixed bearing, and the UI's `set_position` call makes its signals follow the walker.
