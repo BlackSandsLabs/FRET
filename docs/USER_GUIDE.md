@@ -29,13 +29,17 @@ The receiver card's dot is green when the stick is connected, yellow in demo mod
 ![Survey](images/survey.png)
 
 - **Category tiles.** Counts of phones/tablets, computers, CCTV/cameras, wearables/audio, access points and IoT. Click a tile to open **Devices** filtered to that type.
-- **Range radar.**
-  - Each dot is a device, placed by **estimated distance** on a logarithmic scale (1, 3, 8, 25, 60 m rings).
-  - The coloured bar through each dot is the **likely range**.
-  - Faded dots haven't been heard for over 10 seconds. Camera dots are drawn slightly larger.
-  - **Angle is arbitrary.** One receiver can't measure direction, so each device's angle is fixed from its MAC address only to keep the layout stable.
-  - Hover a dot for details, or click it to open the device.
-- **Nearest devices.** The seven closest devices by estimate.
+- **Survey map.** A true-scale, north-up map centred on your position, over satellite imagery when the PC is online, or a metric grid when it isn't. Drag to pan, scroll or use **+ / −** to zoom, and use the target button to recentre on yourself. The scale bar is bottom left.
+- **Position source.** Choose where your position comes from:
+  - **GPS** uses Windows location. Turn on *Settings → Privacy & security → Location*. A laptop without a GPS receiver usually locates itself from Wi-Fi, to tens of metres, so FRET skips triangulation samples worse than ±30 m.
+  - **Tap to place:** tap the map where you are standing. This is the reliable option indoors.
+  - **Simulate walk** (demo only) walks a loop through the simulated scene.
+- **Range mode.** Each device is a ring at its **estimated distance** from you. One position can't give direction, so devices are rings, not points. Hover over or select a device to see its likely range band.
+- **Triangulate mode.** Press **Start walk** and move around the area. FRET records each device's signal at every spot (spots are 1.5 m apart) and solves for the position that best explains all the readings. Each located device shows:
+  - a point and a **95% confidence ellipse**, rated *good* (±6 m or better), *fair* (±15 m) or *rough*;
+  - when selected, shading for where it could be, and a line from you with its **distance and compass bearing** (e.g. *14 m S · ±6 m*).
+  A device needs readings from at least 4 spots spread over 3 m or more. Walk a loop or an L-shape: along a straight line, FRET can't tell which side of you a device is on, and the ellipse will show it. **Reset** clears the walk; case logs are not affected.
+- **Nearest devices.** The seven closest devices by estimate. In Triangulate mode, located devices show distance, direction and accuracy.
 - **Receiver activity.** Wi-Fi frames per second and BLE adverts per second.
 
 ---

@@ -7,6 +7,15 @@
   const st = JSON.parse(JSON.stringify(base));
   const shift = t0 - Math.max(...st.devices.map(d => d.last_seen));
   st.devices.forEach(d => { d.first_seen += shift; d.last_seen += shift; d._base = d.rssi_last; });
+  // Demo scene: every device gets a hidden true position (metres east/north of the start point),
+  // and its RSSI follows the walker, so triangulation has something real to converge on.
+  let pos = { x: 0, y: 0 };
+  const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return ((h >>> 0) % 3600) / 3600 * Math.PI * 2; };
+  st.devices.forEach(d => {
+    d._ref = d.medium === 'wifi' ? st.settings.ref_1m.wifi : st.settings.ref_1m.ble;
+    const d0 = Math.min(45, Math.max(1.5, Math.pow(10, (d._ref - d._base) / 28)));
+    const a = hash(d.mac); d._tx = Math.cos(a) * d0; d._ty = Math.sin(a) * d0;
+  });
   let caseObj = null, obs = 0, toastMsg = '';
   const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) * 2;
   function dist(d, rssi) {
@@ -21,7 +30,8 @@
       const now = Date.now() / 1000;
       st.devices.forEach(d => {
         if (Math.random() < 0.55) {
-          const r = Math.round(d._base + gauss() * 2);
+          const dd = Math.max(0.5, Math.hypot(d._tx - pos.x, d._ty - pos.y));
+          const r = Math.round(d._ref - 28 * Math.log10(dd) + gauss() * 3);
           d.rssi_last = r; d.rssi_hist = [...d.rssi_hist.slice(-29), r]; d.last_seen = now; d.count++; obs++;
           const med = [...d.rssi_hist].sort((a, b) => a - b)[d.rssi_hist.length >> 1];
           d.range = dist(d, med);
@@ -54,6 +64,7 @@
     calibrate(key) { const d = st.devices.find(x => x.key === key); st.settings.ref_1m[d.medium] = d.rssi_last; toastMsg = `${d.medium.toUpperCase()} reference set to ${d.rssi_last} dBm at 1 m`; return Promise.resolve({ ok: true }); },
     update_oui: () => Promise.resolve({ ok: false, error: 'Not available in the preview' }),
     clear_devices: () => Promise.resolve({ ok: true }),
+    set_position(x, y) { pos = { x, y }; return Promise.resolve({ ok: true }); },
     open_folder: () => { toastMsg = 'Opens the case folder in Explorer (desktop app only)'; return Promise.resolve({ ok: true }); },
   };
 })();

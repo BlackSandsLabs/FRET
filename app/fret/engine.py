@@ -221,6 +221,13 @@ class Engine:
             self.case.audit("clear_view", "device list cleared (raw log retained)")
         return {"ok": True}
 
+    def set_position(self, x: float, y: float) -> dict[str, Any]:
+        """Examiner position from the survey map (metres east/north of the walk origin).
+        Only the demo source uses it, to simulate signal changing as you walk."""
+        if self.source is not None and hasattr(self.source, "set_position"):
+            self.source.set_position(x, y)
+        return {"ok": True}
+
     def open_folder(self, path: str | None = None) -> dict[str, Any]:
         p = path or (str(self.case.folder) if self.case else str(cases_dir()))
         try:

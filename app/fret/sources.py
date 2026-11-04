@@ -198,6 +198,16 @@ class DemoSource(Source):
         self.oui = oui
         self.channel = 1
         self.devices = self._scenario()
+        # Demo scene geometry: each device sits at its distance on a fixed bearing from the start
+        # point (metres east/north). The UI reports the examiner's position so triangulation can be tried.
+        geo = random.Random(seed + 1)
+        for x in self.devices:
+            b = geo.random() * 2 * math.pi
+            x["tx"], x["ty"] = x["dist"] * math.cos(b), x["dist"] * math.sin(b)
+        self.pos = (0.0, 0.0)
+
+    def set_position(self, x: float, y: float) -> None:
+        self.pos = (float(x), float(y))
         self.hello = {"t": "hello", "fw": "DEMO", "board": "Simulated receiver", "self": "DE:MO:00:00:00:00"}
 
     def _mac(self, pattern: str | None, randomized: bool = False) -> str:
@@ -262,7 +272,9 @@ class DemoSource(Source):
 
     def _rssi(self, x: dict[str, Any], t: float) -> int:
         ref = -40 if x["m"] == "wifi" else -59
-        dist = x["dist"] * (1 + 0.15 * math.sin(t / 20 + x["phase"]))
+        px, py = getattr(self, "pos", (0.0, 0.0))
+        d0 = math.hypot(x.get("tx", x["dist"]) - px, x.get("ty", 0.0) - py)
+        dist = d0 * (1 + 0.05 * math.sin(t / 20 + x["phase"]))
         return int(ref - 10 * 2.8 * math.log10(max(dist, 0.3)) + self.rng.gauss(0, 3))
 
     def _run(self) -> None:

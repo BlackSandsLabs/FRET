@@ -8,7 +8,7 @@
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-33c7d9?style=flat-square&logo=python&logoColor=white">
   <img alt="Hardware" src="https://img.shields.io/badge/receiver-M5StickC%20Plus2%20%7C%20StickS3-ff9e42?style=flat-square">
   <img alt="Firmware" src="https://img.shields.io/badge/firmware-PlatformIO%20%2F%20Arduino-8c8cff?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.2.1-4dd980?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.3.0-4dd980?style=flat-square">
   <img alt="Licence" src="https://img.shields.io/badge/licence-GPL--3.0-f27ec2?style=flat-square">
 </p>
 
@@ -60,10 +60,11 @@ Everything is recorded to a timestamped case log with an audit trail and SHA-256
 | **Randomised addresses** | Detected and flagged. Phones are still typed from behaviour and Bluetooth content. Router guest and mesh networks are linked back to their parent router |
 | **Linked devices** | Randomised Wi-Fi addresses with an identical probe fingerprint are grouped as *possibly the same device* |
 | **Distance** | Log-distance path-loss estimate shown as a likely range (e.g. *3.4 – 14 m*), with environment presets and 1 m calibration |
+| **Survey map & triangulation** | True-scale satellite map centred on you. Walk the area (GPS or tap-to-place) and FRET triangulates each device to a point with a 95% confidence ellipse, distance and compass bearing |
 | **CCTV focus** | Surveillance manufacturers (Hikvision/EZVIZ, Dahua/Imou, Axis, Uniview, Hanwha, Vivotek and more), camera WPS types and camera-style network names |
 | **Case management** | Per-case SQLite log of every observation (UTC), an audit trail of examiner actions, and CSV/JSON/HTML exports hashed into `SHA256SUMS.txt` |
 | **Passive by default** | The receiver never connects to anything or transmits Wi-Fi frames. Active Bluetooth scanning, which gets device names, is optional and logged |
-| **Modern UI** | Dark desktop interface with live radar, filters, search, device detail panel and notes. A demo mode works without hardware |
+| **Modern UI** | Dark desktop interface with a live survey map, filters, search, device detail panel and notes. A demo mode works without hardware |
 
 ---
 
@@ -120,7 +121,7 @@ Step-by-step instructions with screenshots and troubleshooting are in **[docs/IN
 
 | View | Use it to |
 |---|---|
-| **Survey** | See device counts by type, the range radar, the nearest devices and receiver activity at a glance |
+| **Survey** | See device counts by type, true-scale range rings on a satellite map, walk-to-triangulate device positions, the nearest devices and receiver activity |
 | **Devices** | Search, filter by type or radio, and sort by distance, signal or last seen. Select a device to see its distance band, signal history, identification evidence, broadcast details, linked addresses, and to add notes or flags |
 | **Case** | Open a case (reference, examiner, agency, location, notes), log everything, export and hash, and end the case |
 | **Settings** | Choose the receiver or demo, lock a channel, set the dwell time, switch Bluetooth and active scan on or off, pick the range model, set calibration and update the vendor database |
@@ -193,7 +194,7 @@ More detail is in **[docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md)**.
 
 - **2.4 GHz only.** Devices that are only on 5 or 6 GHz won't appear.
 - **Randomised MACs.** Since iOS 14 and Android 10, phones use random Wi-Fi and Bluetooth addresses, so they have **no make from the registry**. FRET still types them, and often names the brand from Bluetooth data. Exact phone models are usually not broadcast.
-- **Distance is a range, not a position.** Walls, bodies and antenna orientation can each shift readings by 5–10 dB. A single receiver cannot measure direction, so radar angles are arbitrary.
+- **Distance is a range, not a position.** Walls, bodies and antenna orientation can each shift readings by 5–10 dB. One position cannot give direction. Triangulate mode gets direction by walking, and its accuracy depends on how much ground you cover and in how many directions.
 - **Channel hopping.** Very short bursts on another channel can be missed. Lock a channel to watch one network closely.
 - **Quiet devices.** Idle devices may transmit rarely and may not appear at all during a short survey.
 - **Linked addresses are leads, not proof.** Matching probe fingerprints suggest the same handset, but many devices of one model share a fingerprint.

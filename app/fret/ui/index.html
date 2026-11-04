@@ -39,10 +39,30 @@
     <section class="view on" id="v-survey">
       <div class="kpis" id="kpis"></div>
       <div class="grid2">
-        <div class="card radar-card">
-          <div class="sechead"><span>Estimated range from receiver</span><span class="muted" id="envLabel"></span></div>
-          <div class="radar-wrap"><svg id="radar" viewBox="-310 -310 620 620"></svg><div class="tip" id="tip"></div></div>
-          <div class="radar-foot">Distance from signal strength only. A single receiver can't measure direction, so angle is arbitrary. Each arc shows the likely range.</div>
+        <div class="card map-card">
+          <div class="sechead" style="margin-bottom:0"><span id="mHead">Range from your position</span><span class="muted" id="envLabel"></span></div>
+          <div class="maptools">
+            <div class="seg" id="mMode"><button data-v="range" class="on">Range</button><button data-v="tri">Triangulate</button></div>
+            <div class="seg" id="mSrc" title="Where your position comes from"><button data-v="gps">GPS</button><button data-v="tap">Tap to place</button><button data-v="sim">Simulate walk</button></div>
+            <button class="btn" id="mWalk" hidden><i data-ico="play"></i><span>Start walk</span></button>
+            <button class="btn" id="mReset" hidden>Reset</button>
+            <span class="spacer"></span>
+            <span class="stat-line" id="mStat"></span>
+          </div>
+          <div class="mapwrap" id="mapwrap">
+            <canvas id="map" aria-label="Survey map"></canvas>
+            <div class="mapnote" id="mNote" hidden></div>
+            <div class="mapctl">
+              <button id="mIn" title="Zoom in" aria-label="Zoom in">+</button>
+              <button id="mOut" title="Zoom out" aria-label="Zoom out">−</button>
+              <button id="mMe" title="Centre on me" aria-label="Centre on me"><i data-ico="target"></i></button>
+              <span class="north">N ↑</span>
+            </div>
+            <div class="tip" id="tip"></div>
+            <div class="mapinfo" id="mapInfo" hidden></div>
+            <div class="attrib" id="mAttr"></div>
+          </div>
+          <div class="radar-foot" id="mFoot"></div>
         </div>
         <div class="col">
           <div class="card">

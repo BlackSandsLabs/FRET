@@ -18,7 +18,8 @@ from .engine import Engine
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 API_METHODS = {"get_state", "list_ports", "use_source", "send_command", "start_case", "end_case", "export",
-               "annotate", "set_setting", "calibrate", "update_oui", "clear_devices", "open_folder"}
+               "annotate", "set_setting", "calibrate", "update_oui", "clear_devices", "open_folder",
+               "set_position"}
 
 
 def make_handler(engine: Engine):
