@@ -2,6 +2,19 @@
 
 All notable changes to FRET are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-11-04
+
+### Added
+- **Survey map.** The Survey view is now a true-scale map centred on the examiner's position, over satellite imagery (Esri World Imagery) when online, or a metric grid when offline. It has drag to pan, wheel or buttons to zoom, a scale bar, and a recentre button.
+- **Range mode.** Each device is a ring at its estimated distance from your position. Hover over or select a device to see its likely range band.
+- **Triangulate mode.** Walk the area and FRET records each device's signal at every spot you stand on. It then solves for the position that best explains the readings, fitting the 1 m reference level as it goes, so calibration doesn't need to be exact. Each located device shows a point, a 95% confidence ellipse rated *good*, *fair* or *rough*, the selected device's likelihood shading, and its distance and compass bearing from you.
+- Position sources: **GPS** (Windows location; samples are skipped when accuracy is worse than ±30 m), **Tap to place** (tap where you stand; best indoors) and **Simulate walk** (demo).
+- The device panel shows the **triangulated position** (distance, bearing, ±95% radius and coordinates).
+- Demo mode places devices in a simulated scene. API `set_position` lets the demo's signals follow you as you walk; the real receiver ignores it.
+
+### Changed
+- The range radar has been replaced by the map. One position can't give direction, so Range mode shows rings instead of dots at arbitrary angles.
+
 ## [1.2.1] - 2026-11-03
 
 ### Added

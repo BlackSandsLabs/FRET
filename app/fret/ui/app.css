@@ -88,21 +88,39 @@ h1{font-size:30px;font-weight:800;letter-spacing:-.3px}
 
 .grid2{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);gap:14px}
 .col{display:flex;flex-direction:column;gap:14px}
-.radar-card{display:flex;flex-direction:column}
-.radar-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;min-height:420px}
-#radar{width:100%;max-height:560px}
-.radar-foot{font-size:12px;color:var(--faint);margin-top:8px;line-height:1.45}
-#radar .ring{fill:none;stroke:rgba(255,255,255,.07)}
-#radar .ring.major{stroke:rgba(255,255,255,.12)}
-#radar .rl{fill:var(--faint);font-size:12px;font-family:var(--mono)}
-#radar .sweep{transform-origin:0 0;animation:spin 6s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-#radar .dev{cursor:pointer}
-#radar .dev circle.core{stroke:var(--bg);stroke-width:2}
-#radar .dev:hover circle.core{stroke:#fff}
-#radar .dev.sel circle.core{stroke:#fff;stroke-width:3}
-#radar .arc{fill:none;stroke-linecap:round;opacity:.28}
-#radar .center{fill:var(--accent)}
+/* Survey map */
+.map-card{display:flex;flex-direction:column;gap:10px;padding:14px}
+.maptools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.maptools .seg button{padding:6px 12px}
+.maptools .seg button[disabled]{opacity:.4;cursor:not-allowed}
+.maptools .btn{padding:7px 12px}
+.maptools .stat-line{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.mapwrap{position:relative;flex:1;min-height:540px;border-radius:12px;overflow:hidden;background:#0b1219;border:1px solid var(--stroke)}
+#map{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none;display:block}
+#map.drag{cursor:grabbing}
+#map.place{cursor:crosshair}
+.mapctl{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:6px;align-items:center}
+.mapctl button{width:34px;height:34px;border-radius:10px;background:rgba(23,31,41,.92);border:1px solid var(--stroke);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px}
+.mapctl button:hover{background:var(--raised)}
+.mapctl button:focus-visible,.maptools button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.mapctl button.on{color:var(--accent)}
+.mapctl .north{font-size:10.5px;font-weight:700;letter-spacing:1px;color:var(--muted);margin-top:2px;pointer-events:none;text-shadow:0 1px 2px #000}
+.mapnote{position:absolute;top:10px;left:10px;right:58px;max-width:540px;background:rgba(13,20,29,.93);border:1px solid var(--stroke);border-radius:10px;padding:8px 30px 8px 11px;font-size:12px;color:var(--muted);line-height:1.45}
+.mapnote p+p{margin-top:4px}
+.mapnote b{color:var(--warn);font-weight:600}
+.mapnote .x{position:absolute;top:4px;right:6px;width:22px;height:22px;color:var(--muted);font-size:15px}
+.mapinfo{position:absolute;right:10px;bottom:26px;width:284px;background:rgba(23,31,41,.96);border:1px solid var(--stroke);border-radius:12px;padding:12px;font-size:12.5px;box-shadow:0 12px 32px rgba(0,0,0,.45);line-height:1.45}
+.mapinfo .hd{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.mapinfo .hd .tico{width:30px;height:30px}
+.mapinfo .x{margin-left:auto;color:var(--muted);font-size:16px;width:24px;height:24px;flex-shrink:0}
+.mapinfo .big{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.q{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.6px;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:3px}
+.q.good{color:var(--ok);background:rgba(77,217,128,.14)}
+.q.fair{color:var(--warn);background:rgba(255,204,77,.14)}
+.q.rough{color:var(--bad);background:rgba(255,97,97,.14)}
+.mapinfo .btn{margin-top:10px;width:100%}
+.attrib{position:absolute;right:6px;bottom:4px;font-size:10px;color:rgba(255,255,255,.6);text-shadow:0 1px 2px #000;pointer-events:none}
+.radar-foot{font-size:12px;color:var(--faint);line-height:1.45}
 .tip{position:absolute;pointer-events:none;background:rgba(33,41,54,.97);border:1px solid var(--stroke);border-radius:10px;padding:8px 10px;font-size:12px;opacity:0;transition:opacity .1s;white-space:nowrap;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .tip b{display:block;font-size:13px}
 

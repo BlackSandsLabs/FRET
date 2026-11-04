@@ -148,49 +148,417 @@ function renderSurvey() {
     <div class="ic">${ico(c)}</div><div class="n">${counts[c] || 0}</div><div class="l">${l}</div></div>`).join('');
   $('#kpis').querySelectorAll('.kpi').forEach(k => k.onclick = () => { S.filter = k.dataset.cat; go('devices'); });
   $('#envLabel').textContent = { open: 'Open-space model', indoor: 'Indoor model', dense: 'Dense-building model' }[st.settings.environment] || '';
-  renderRadar();
+  $('#mHead').textContent = M.mode === 'tri' ? 'Triangulated positions' : 'Range from your position';
+  drawMap(); renderMapInfo();
   const near = [...st.devices].filter(d => d.range).sort((a, b) => a.range.est - b.range.est).slice(0, 7);
-  $('#nearest').innerHTML = near.length ? near.map(d => `<div class="li" data-key="${esc(d.key)}">
+  $('#nearest').innerHTML = near.length ? near.map(d => {
+    const f = M.mode === 'tri' && M.fits.get(d.key), rel = f && f.status === 'ok' && relTo(f);
+    const dist = rel ? `${fmtM(rel.d)} ${rel.dir}<span>±${fmtM(f.r95)} · ${f.q}</span>` : `${fmtM(d.range.est)}<span>${fmtM(d.range.min)}–${fmtM(d.range.max)}</span>`;
+    return `<div class="li" data-key="${esc(d.key)}" style="${M.sel === d.key ? 'background:var(--hover)' : ''}">
       <div class="tico" style="--c:${cvar(d.category)}">${ico(d.category)}</div>
       <div class="mid"><div class="t">${esc(title(d))}</div><div class="s">${esc(subtitle(d))} · <span class="mono">${esc(d.mac)}</span></div></div>
-      <div class="dist">${fmtM(d.range.est)}<span>${fmtM(d.range.min)}–${fmtM(d.range.max)}</span></div></div>`).join('')
+      <div class="dist">${dist}</div></div>`;
+  }).join('')
     : '<div class="muted" style="padding:20px 6px">Waiting for devices…</div>';
-  $('#nearest').querySelectorAll('.li').forEach(el => el.onclick = () => openDevice(el.dataset.key));
+  $('#nearest').querySelectorAll('.li').forEach(el => el.onclick = () => { M.sel = el.dataset.key; render(); });
   renderSpark();
 }
 
-function renderRadar() {
-  const R = 280, st = S.state, svg = $('#radar');
-  const rings = [1, 3, 8, 25, 60];
-  let h = `<defs><radialGradient id="sw" cx="0" cy="0" r="1"><stop offset="0" stop-color="rgba(51,199,217,.28)"/><stop offset="1" stop-color="rgba(51,199,217,0)"/></radialGradient></defs>`;
-  h += `<g class="sweep"><path d="M0 0 L${R} 0 A${R} ${R} 0 0 0 ${R * Math.cos(-0.6)} ${R * Math.sin(-0.6)} Z" fill="url(#sw)" opacity=".6"/></g>`;
-  rings.forEach((m, i) => {
-    const r = logpos(m) * R;
-    h += `<circle class="ring ${m === 3 || m === 8 || m === 25 ? 'major' : ''}" r="${r}"/>`;
-    h += `<text class="rl" x="6" y="${-r - 5}">${m} m</text>`;
-  });
-  h += `<line x1="${-R}" y1="0" x2="${R}" y2="0" stroke="rgba(255,255,255,.04)"/><line y1="${-R}" x1="0" y2="${R}" x2="0" stroke="rgba(255,255,255,.04)"/>`;
-  const devs = st.devices.filter(d => d.range);
-  for (const d of devs) {
-    const a = hashAngle(d.mac), c = cvar(d.category);
-    const r = logpos(d.range.est) * R, r1 = logpos(d.range.min) * R, r2 = logpos(d.range.max) * R;
-    const x = Math.cos(a) * r, y = Math.sin(a) * r;
-    const fresh = d.age < 10;
-    h += `<g class="dev ${S.sel === d.key ? 'sel' : ''}" data-key="${esc(d.key)}" opacity="${fresh ? 1 : 0.4}">
-      <line class="arc" x1="${Math.cos(a) * r1}" y1="${Math.sin(a) * r1}" x2="${Math.cos(a) * r2}" y2="${Math.sin(a) * r2}" stroke="${c}" stroke-width="10"/>
-      <circle class="core" cx="${x}" cy="${y}" r="${d.category === 'camera' ? 9 : 7}" fill="${c}"/></g>`;
-  }
-  h += `<circle class="center" r="7"/><circle r="14" fill="none" stroke="var(--accent)" stroke-opacity=".35"/>`;
-  svg.innerHTML = h;
-  const tip = $('#tip'), wrap = svg.parentElement;
-  svg.querySelectorAll('.dev').forEach(g => {
-    const d = devs.find(x => x.key === g.dataset.key);
-    g.onmouseenter = e => { tip.innerHTML = `<b>${esc(title(d))}</b>${esc(d.category_label)} · ${fmtM(d.range.est)} (${fmtM(d.range.min)}–${fmtM(d.range.max)})<br><span class="mono muted">${esc(d.mac)}</span>`; tip.style.opacity = 1; };
-    g.onmousemove = e => { const b = wrap.getBoundingClientRect(); tip.style.left = (e.clientX - b.left + 14) + 'px'; tip.style.top = (e.clientY - b.top + 14) + 'px'; };
-    g.onmouseleave = () => tip.style.opacity = 0;
-    g.onclick = () => openDevice(d.key);
-  });
+// ---------------------------------------------------------------- map, position & triangulation
+// Local frame: metres east (x) / north (y) of M.origin. Imagery: Esri World Imagery, Web Mercator tiles.
+const DEMO_SITE = { lat: 51.47695, lon: -0.00055 };
+const ENV_N = { open: 2.2, indoor: 2.8, dense: 3.5 };
+const CAT_HEX = { phone: '#33c7d9', computer: '#8c8cff', camera: '#ff9e42', wearable: '#f27ec2', ap: '#4dd980', iot: '#ffcc4d', unknown: '#8a94a3' };
+const hexA = (h, a) => `rgba(${parseInt(h.slice(1, 3), 16)},${parseInt(h.slice(3, 5), 16)},${parseInt(h.slice(5, 7), 16)},${a})`;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const M = {
+  origin: { ...DEMO_SITE }, me: { x: 0, y: 0, acc: null }, gps: null,
+  geo: 'pending', src: 'gps', mode: 'range',
+  view: { cx: 0, cy: 0, z: 19 }, zoomed: false, follow: true,
+  sampling: false, track: [], walked: 0, spotSet: new Set(), tickN: 0,
+  obs: new Map(), fits: new Map(), sel: null, hover: null,
+  tiles: new Map(), tileOk: 0, tileErr: 0, noImagery: false, dismissed: new Set(),
+  sim: { s: 0, timer: null, ox: 0, oy: 0 },
+};
+const R_LAT = 110574;
+const cosLat = () => Math.cos(M.origin.lat * Math.PI / 180);
+const toLL = (x, y) => ({ lat: M.origin.lat + y / R_LAT, lon: M.origin.lon + x / (111320 * cosLat()) });
+const fromLL = (lat, lon) => ({ x: (lon - M.origin.lon) * 111320 * cosLat(), y: (lat - M.origin.lat) * R_LAT });
+const mpp = () => 156543.03392 * cosLat() / 2 ** M.view.z;   // metres per CSS pixel
+function worldPx(lat, lon, z) {
+  const n = 256 * 2 ** z, s = Math.sin(lat * Math.PI / 180);
+  return { x: (lon + 180) / 360 * n, y: (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n };
 }
+const nice = v => { const p = 10 ** Math.floor(Math.log10(v)); for (const f of [1, 2, 5, 10]) if (f * p >= v) return f * p; };
+const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+function relTo(f) {
+  const dx = f.x - M.me.x, dy = f.y - M.me.y, brg = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+  return { d: Math.hypot(dx, dy), brg: Math.round(brg), dir: DIRS[Math.round(brg / 45) % 8] };
+}
+
+const cv = $('#map'), mctx = cv.getContext('2d');
+let CW = 0, CH = 0;
+function sizeMap() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (!r.width || !r.height) return false;
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  CW = r.width; CH = r.height; mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return true;
+}
+const scr = (x, y) => { const m = mpp(); return [CW / 2 + (x - M.view.cx) / m, CH / 2 - (y - M.view.cy) / m]; };
+const unscr = (sx, sy) => { const m = mpp(); return [M.view.cx + (sx - CW / 2) * m, M.view.cy - (sy - CH / 2) * m]; };
+
+function tile(z, x, y) {
+  const k = z + '/' + x + '/' + y; let t = M.tiles.get(k);
+  if (!t) {
+    t = new Image();
+    t.onload = () => { M.tileOk++; drawMap(); };
+    t.onerror = () => { t.bad = true; M.tileErr++; if (M.tileErr >= 4 && !M.tileOk) M.noImagery = true; drawMap(); };
+    t.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+    M.tiles.set(k, t);
+    if (M.tiles.size > 300) M.tiles.delete(M.tiles.keys().next().value);
+  }
+  return t;
+}
+function drawTiles() {
+  const zi = clamp(Math.round(M.view.z), 3, 19), s = 2 ** (M.view.z - zi), ts = 256 * s;
+  const c = toLL(M.view.cx, M.view.cy), W = worldPx(c.lat, c.lon, zi);
+  const x0 = Math.floor((W.x - CW / 2 / s) / 256), x1 = Math.floor((W.x + CW / 2 / s) / 256);
+  const y0 = Math.floor((W.y - CH / 2 / s) / 256), y1 = Math.floor((W.y + CH / 2 / s) / 256);
+  for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+    const t = tile(zi, tx, ty);
+    if (t.complete && !t.bad && t.naturalWidth) mctx.drawImage(t, (tx * 256 - W.x) * s + CW / 2, (ty * 256 - W.y) * s + CH / 2, ts + 0.6, ts + 0.6);
+  }
+}
+function drawGrid() {
+  const m = mpp(), step = nice(m * 70), [ax, ay] = unscr(0, CH), [bx, by] = unscr(CW, 0), c = mctx;
+  c.lineWidth = 1;
+  for (let x = Math.floor(ax / step) * step; x <= bx; x += step) {
+    const [sx] = scr(x, 0); c.strokeStyle = Math.round(x / step) % 5 ? 'rgba(255,255,255,.05)' : 'rgba(255,255,255,.11)';
+    c.beginPath(); c.moveTo(Math.round(sx) + .5, 0); c.lineTo(Math.round(sx) + .5, CH); c.stroke();
+  }
+  for (let y = Math.floor(ay / step) * step; y <= by; y += step) {
+    const [, sy] = scr(0, y); c.strokeStyle = Math.round(y / step) % 5 ? 'rgba(255,255,255,.05)' : 'rgba(255,255,255,.11)';
+    c.beginPath(); c.moveTo(0, Math.round(sy) + .5); c.lineTo(CW, Math.round(sy) + .5); c.stroke();
+  }
+}
+function label(text, x, y, color) {
+  const c = mctx; c.font = '600 12px ' + getComputedStyle(document.body).fontFamily;
+  const w = c.measureText(text).width + 12;
+  c.fillStyle = 'rgba(13,20,29,.88)'; c.beginPath(); c.roundRect(x - w / 2, y - 11, w, 22, 6); c.fill();
+  c.strokeStyle = hexA(color, .7); c.lineWidth = 1; c.stroke();
+  c.fillStyle = '#f2f5f7'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, x, y + .5);
+}
+function fitZoom(radiusM) { return clamp(Math.log2(156543.03392 * cosLat() / (radiusM / Math.max(80, Math.min(CW, CH) / 2 - 24))), 14, 21.5); }
+
+let drawQueued = false;
+function drawMap() { if (!drawQueued) { drawQueued = true; requestAnimationFrame(() => { drawQueued = false; paintMap(); }); } }
+function paintMap() {
+  if (S.view !== 'survey' || !S.state || !sizeMap()) return;
+  if (!M.zoomed) { M.view.z = fitZoom(35); M.zoomed = true; }
+  if (M.follow && M.me) { M.view.cx = M.me.x; M.view.cy = M.me.y; }
+  const c = mctx;
+  c.fillStyle = '#0b1219'; c.fillRect(0, 0, CW, CH);
+  if (!M.tileOk) drawGrid();
+  if (!M.noImagery) { drawTiles(); if (M.tileOk) { c.fillStyle = 'rgba(6,10,16,.3)'; c.fillRect(0, 0, CW, CH); } }
+  if (M.mode === 'range') drawRange(); else drawTri();
+  drawMe(); drawScale();
+  cv.classList.toggle('place', M.src === 'tap');
+  $('#mAttr').textContent = M.tileOk ? 'Imagery © Esri, Maxar, Earthstar Geographics' : '';
+}
+
+function drawRange() {
+  const c = mctx, m = mpp(), [sx, sy] = scr(M.me.x, M.me.y);
+  const devs = S.state.devices.filter(d => d.range);
+  const hot = devs.filter(d => d.key === M.sel || d.key === M.hover);
+  for (const d of devs) {
+    if (hot.includes(d)) continue;
+    c.strokeStyle = hexA(CAT_HEX[d.category] || CAT_HEX.unknown, d.age < 10 ? .42 : .15); c.lineWidth = 1.5;
+    c.beginPath(); c.arc(sx, sy, d.range.est / m, 0, Math.PI * 2); c.stroke();
+  }
+  for (const d of hot) {
+    const col = CAT_HEX[d.category] || CAT_HEX.unknown, r = d.range;
+    c.fillStyle = hexA(col, .16); c.beginPath();
+    c.arc(sx, sy, r.max / m, 0, Math.PI * 2); c.arc(sx, sy, r.min / m, 0, Math.PI * 2, true); c.fill();
+    c.strokeStyle = col; c.lineWidth = 2.5; c.beginPath(); c.arc(sx, sy, r.est / m, 0, Math.PI * 2); c.stroke();
+    label(`${title(d)} · ${fmtM(r.est)}`, sx, sy - r.est / m, col);
+  }
+}
+
+function drawTri() {
+  const c = mctx, m = mpp();
+  if (M.track.length > 1) {
+    c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 2; c.setLineDash([2, 5]); c.beginPath();
+    M.track.forEach((p, i) => { const [x, y] = scr(p.x, p.y); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke(); c.setLineDash([]);
+  }
+  const sf = M.sel && M.fits.get(M.sel);
+  if (sf && sf.status === 'ok') {
+    const d = S.state.devices.find(x => x.key === M.sel);
+    if (!sf.heat) sf.heat = heatCanvas(sf, CAT_HEX[d?.category] || CAT_HEX.unknown);
+    const [x0, y0] = scr(sf.gx0, sf.gy0 + sf.size);
+    c.imageSmoothingEnabled = true; c.drawImage(sf.heat, x0, y0, sf.size / m, sf.size / m);
+  }
+  for (const [k, f] of M.fits) {
+    if (f.status !== 'ok') continue;
+    const d = S.state.devices.find(x => x.key === k); if (!d) continue;
+    const col = CAT_HEX[d.category] || CAT_HEX.unknown, [x, y] = scr(f.x, f.y), on = k === M.sel || k === M.hover;
+    if (!on && f.q === 'rough') continue;
+    c.fillStyle = hexA(col, on ? .14 : .07); c.strokeStyle = hexA(col, on ? .95 : .5); c.lineWidth = on ? 2 : 1.2;
+    c.beginPath(); c.ellipse(x, y, Math.max(2, f.ra / m), Math.max(2, f.rb / m), -f.ang, 0, Math.PI * 2); c.fill(); c.stroke();
+  }
+  for (const [k, f] of M.fits) {
+    if (f.status !== 'ok') continue;
+    const d = S.state.devices.find(x => x.key === k); if (!d) continue;
+    const col = CAT_HEX[d.category] || CAT_HEX.unknown, [x, y] = scr(f.x, f.y), on = k === M.sel || k === M.hover;
+    const rough = f.q === 'rough' && !on;
+    c.fillStyle = rough ? 'rgba(10,15,23,.7)' : col; c.strokeStyle = on ? '#fff' : rough ? col : '#0a0f17'; c.lineWidth = on ? 3 : 2;
+    c.beginPath(); c.arc(x, y, d.category === 'camera' ? 8 : 6.5, 0, Math.PI * 2); c.fill(); c.stroke();
+    if (k === M.sel) {
+      const [mx, my] = scr(M.me.x, M.me.y), rel = relTo(f);
+      c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 1.5; c.setLineDash([6, 5]);
+      c.beginPath(); c.moveTo(mx, my); c.lineTo(x, y); c.stroke(); c.setLineDash([]);
+      label(`${fmtM(rel.d)} ${rel.dir} · ±${fmtM(f.r95)}`, (mx + x) / 2, (my + y) / 2, col);
+      label(title(d), x, y - 22, col);
+    }
+  }
+}
+function heatCanvas(f, col) {
+  const N = f.N, el = document.createElement('canvas'); el.width = el.height = N;
+  const cx = el.getContext('2d'), im = cx.createImageData(N, N);
+  const r = parseInt(col.slice(1, 3), 16), g = parseInt(col.slice(3, 5), 16), b = parseInt(col.slice(5, 7), 16);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const o = ((N - 1 - j) * N + i) * 4, p = f.p[j * N + i];
+    im.data[o] = r; im.data[o + 1] = g; im.data[o + 2] = b; im.data[o + 3] = Math.round(190 * Math.sqrt(p));
+  }
+  cx.putImageData(im, 0, 0); return el;
+}
+function drawMe() {
+  const c = mctx, m = mpp(), [x, y] = scr(M.me.x, M.me.y);
+  if (M.me.acc) { c.fillStyle = 'rgba(51,199,217,.12)'; c.strokeStyle = 'rgba(51,199,217,.5)'; c.lineWidth = 1; c.beginPath(); c.arc(x, y, M.me.acc / m, 0, Math.PI * 2); c.fill(); c.stroke(); }
+  c.fillStyle = 'rgba(51,199,217,.25)'; c.beginPath(); c.arc(x, y, 14, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#33c7d9'; c.strokeStyle = '#fff'; c.lineWidth = 2.5; c.beginPath(); c.arc(x, y, 7, 0, Math.PI * 2); c.fill(); c.stroke();
+}
+function drawScale() {
+  const c = mctx, m = mpp(), len = nice(100 * m), px = len / m, x = 14, y = CH - 18;
+  c.fillStyle = 'rgba(13,20,29,.75)'; c.beginPath(); c.roundRect(x - 6, y - 20, px + 12, 30, 6); c.fill();
+  c.strokeStyle = '#f2f5f7'; c.lineWidth = 2; c.beginPath(); c.moveTo(x, y - 5); c.lineTo(x, y); c.lineTo(x + px, y); c.lineTo(x + px, y - 5); c.stroke();
+  c.fillStyle = '#f2f5f7'; c.font = '600 11px ' + getComputedStyle(document.body).fontFamily; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+  c.fillText(len >= 1000 ? len / 1000 + ' km' : len + ' m', x, y - 8);
+}
+
+// ---- solver: for each grid cell, fit the 1 m reference level in closed form, score the residual
+function solve(rec, medium) {
+  const bins = new Map();
+  for (const o of rec.obs) {
+    const k = Math.round(o.x / 1.5) + ',' + Math.round(o.y / 1.5); let b = bins.get(k);
+    if (!b) bins.set(k, b = { x: 0, y: 0, r: [] }); b.x += o.x; b.y += o.y; b.r.push(o.r);
+  }
+  const sts = [...bins.values()].map(b => { const r = [...b.r].sort((p, q) => p - q); return { x: b.x / r.length, y: b.y / r.length, r: r[r.length >> 1], w: 1 / (16 + 16 / r.length) }; });
+  const n = rec.obs.length, spots = sts.length;
+  if (spots < 4 || n < 8) return { status: 'few', n, spots };
+  let mx = 0, my = 0; sts.forEach(s => { mx += s.x; my += s.y; }); mx /= spots; my /= spots;
+  const spread = 2 * Math.max(...sts.map(s => Math.hypot(s.x - mx, s.y - my)));
+  if (spread < 3) return { status: 'spread', n, spots, spread };
+  const set = S.state.settings, k10 = 10 * (ENV_N[set.environment] || 2.8), A0 = set.ref_1m[medium] ?? -50, wA = 1 / 100;
+  const dNear = 10 ** ((A0 - Math.max(...sts.map(s => s.r))) / k10);
+  const half = clamp(spread / 2 + 2.5 * dNear + 8, 25, 160), N = 64, step = 2 * half / N, gx0 = mx - half, gy0 = my - half;
+  const cost = new Float64Array(N * N); let best = Infinity, bi = 0;
+  for (let j = 0; j < N; j++) {
+    const py = gy0 + (j + .5) * step;
+    for (let i = 0; i < N; i++) {
+      const px = gx0 + (i + .5) * step;
+      let sw = wA, s1 = A0 * wA, s2 = A0 * A0 * wA;   // calibrated 1 m level as a soft prior (±10 dB)
+      for (const s of sts) { const rp = s.r + k10 * Math.log10(Math.max(0.7, Math.hypot(px - s.x, py - s.y))); sw += s.w; s1 += rp * s.w; s2 += rp * rp * s.w; }
+      const cst = s2 - s1 * s1 / sw, k = j * N + i; cost[k] = cst; if (cst < best) { best = cst; bi = k; }
+    }
+  }
+  const bx = gx0 + (bi % N + .5) * step, by = gy0 + (((bi / N) | 0) + .5) * step;
+  const p = new Float32Array(N * N); let tot = 0, sxx = 0, sxy = 0, syy = 0;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const k = j * N + i, w = Math.exp(-(cost[k] - best) / 2), dx = gx0 + (i + .5) * step - bx, dy = gy0 + (j + .5) * step - by;
+    p[k] = w; tot += w; sxx += w * dx * dx; sxy += w * dx * dy; syy += w * dy * dy;
+  }
+  sxx = sxx / tot + step * step / 12; syy = syy / tot + step * step / 12; sxy /= tot;
+  const T = (sxx + syy) / 2, D = Math.sqrt(((sxx - syy) / 2) ** 2 + sxy * sxy), l1 = T + D, l2 = Math.max(1e-6, T - D);
+  const ra = 2.45 * Math.sqrt(l1), rb = 2.45 * Math.sqrt(l2), edge = bi % N === 0 || bi % N === N - 1 || bi < N || bi >= N * (N - 1);
+  const q = edge || ra > 15 ? 'rough' : ra > 6 ? 'fair' : 'good';
+  return { status: 'ok', x: bx, y: by, ra, rb, r95: ra, ang: 0.5 * Math.atan2(2 * sxy, sxx - syy), q, n, spots, spread, p, N, gx0, gy0, size: 2 * half };
+}
+function solveAll() {
+  for (const [k, rec] of M.obs) { const d = S.state.devices.find(x => x.key === k); if (d) M.fits.set(k, solve(rec, d.medium)); }
+}
+function sampleTick() {
+  if (M.mode !== 'tri' || !M.sampling || !S.state) return;
+  if (M.src === 'gps' && (M.me.acc ?? 99) > 30) return;
+  const { x, y } = M.me, last = M.track[M.track.length - 1];
+  if (!last || Math.hypot(x - last.x, y - last.y) > 0.3) {
+    if (last) M.walked += Math.hypot(x - last.x, y - last.y);
+    M.track.push({ x, y }); if (M.track.length > 3000) M.track.shift();
+    M.spotSet.add(Math.round(x / 1.5) + ',' + Math.round(y / 1.5));
+  }
+  for (const d of S.state.devices) {
+    if (d.age > 1.5 || d.rssi_last == null) continue;
+    let r = M.obs.get(d.key); if (!r) M.obs.set(d.key, r = { obs: [], seen: 0 });
+    if (d.last_seen === r.seen) continue;
+    r.seen = d.last_seen; r.obs.push({ x, y, r: d.rssi_last }); if (r.obs.length > 800) r.obs.shift();
+  }
+  if (++M.tickN % 2 === 0) solveAll();
+}
+
+// ---- position sources
+function setMe(x, y, acc) {
+  M.me = { x, y, acc: acc ?? null };
+  // Demo sources move their simulated signals with you; the real receiver ignores this.
+  if (S.state?.source?.kind === 'demo') Promise.resolve(api('set_position', x, y)).catch(() => {});
+}
+function startGeo() {
+  if (!navigator.geolocation) return geoFail();
+  try {
+    navigator.geolocation.watchPosition(p => {
+      const { latitude: lat, longitude: lon, accuracy } = p.coords;
+      if (M.geo !== 'ok') { M.geo = 'ok'; if (!M.track.length) { M.origin = { lat, lon }; M.tileOk = 0; M.tileErr = 0; M.noImagery = false; } }
+      const q = fromLL(lat, lon); M.gps = { x: q.x, y: q.y, acc: accuracy };
+      if (M.src === 'gps') setMe(q.x, q.y, accuracy);
+      render();
+    }, geoFail, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+  } catch (e) { geoFail(); }
+}
+function geoFail() { if (M.geo === 'ok') return; M.geo = 'denied'; if (M.src === 'gps') M.src = 'tap'; render(); }
+const SIM_PATH = [[0, 0], [16, 0], [16, 12], [-9, 12], [-9, -8], [7, -8], [7, 3], [0, 0]];
+function simAt(s) {
+  const segs = SIM_PATH.slice(1).map((p, i) => [SIM_PATH[i], p, Math.hypot(p[0] - SIM_PATH[i][0], p[1] - SIM_PATH[i][1])]);
+  let t = s % segs.reduce((a, g) => a + g[2], 0);
+  for (const [a, b, L] of segs) { if (t <= L) return [a[0] + (b[0] - a[0]) * t / L, a[1] + (b[1] - a[1]) * t / L]; t -= L; }
+  return SIM_PATH[0];
+}
+function startSim() {
+  if (M.sim.timer) return;
+  if (M.sim.s === 0) { M.sim.ox = M.me.x; M.sim.oy = M.me.y; }
+  M.sim.timer = setInterval(() => { M.sim.s += 1.3 * 0.2; const [x, y] = simAt(M.sim.s); setMe(x + M.sim.ox, y + M.sim.oy, null); drawMap(); }, 200);
+}
+function stopSim() { clearInterval(M.sim.timer); M.sim.timer = null; }
+function setSrc(v) {
+  if (v === 'gps' && M.geo !== 'ok') { toast(M.geo === 'denied' ? 'Location isn\'t available here. Use Tap to place or Simulate walk.' : 'Still waiting for a location fix'); return; }
+  M.src = v; stopSim();
+  if (v === 'gps' && M.gps) setMe(M.gps.x, M.gps.y, M.gps.acc);
+  if (v === 'sim' && M.sampling && M.mode === 'tri') startSim();
+  M.follow = true; render();
+}
+function setSampling(on) {
+  M.sampling = on;
+  if (on && M.src === 'sim') startSim(); else stopSim();
+  render();
+}
+function resetWalk() {
+  setSampling(false); M.track = []; M.walked = 0; M.spotSet.clear(); M.obs.clear(); M.fits.clear(); M.sim.s = 0;
+  toast('Walk cleared'); render();
+}
+
+// ---- map chrome: toolbar, notes, info card
+function renderMapChrome() {
+  document.querySelectorAll('#mMode button').forEach(b => b.classList.toggle('on', b.dataset.v === M.mode));
+  document.querySelectorAll('#mSrc button').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === M.src);
+    if (b.dataset.v === 'gps') { b.disabled = M.geo === 'denied'; b.title = M.geo === 'denied' ? 'Location isn\'t available in this view' : 'Use this computer\'s location'; }
+  });
+  const tri = M.mode === 'tri';
+  $('#mWalk').hidden = !tri; $('#mReset').hidden = !tri;
+  $('#mWalk').innerHTML = M.sampling ? `${ico('stop')}<span>Pause walk</span>` : `${ico('play')}<span>${M.track.length ? 'Resume walk' : 'Start walk'}</span>`;
+  $('#mWalk').classList.toggle('primary', !M.sampling);
+  const located = [...M.fits.values()].filter(f => f.status === 'ok' && f.q !== 'rough').length;
+  const pos = M.src === 'gps' ? (M.me.acc ? `GPS ±${Math.round(M.me.acc)} m` : 'GPS') : M.src === 'sim' ? 'Simulated' : 'Placed by tap';
+  let stat = tri ? `${M.spotSet.size} spots · ${Math.round(M.walked)} m walked · ${located} located · ${pos}` : `${pos}${M.geo === 'denied' ? ' · demo site' : ''}`;
+  if (tri && M.sampling && M.src === 'gps' && (M.me.acc ?? 99) > 30) stat = `GPS ±${Math.round(M.me.acc ?? 99)} m is too coarse to sample. Use Tap to place.`;
+  $('#mStat').textContent = stat;
+  const notes = [];
+  if (M.geo === 'denied' && !M.dismissed.has('geo')) notes.push(['geo', '<b>Location unavailable.</b> This view can\'t read your position, so the survey is centred on a demo site. Use Tap to place or Simulate walk.']);
+  if (M.geo === 'pending') notes.push(['wait', 'Finding your location…']);
+  if (M.noImagery && !M.dismissed.has('img')) notes.push(['img', '<b>Satellite imagery didn\'t load.</b> A metric grid is shown at the same scale. Imagery needs an internet connection.']);
+  const n = $('#mNote'); n.hidden = !notes.length;
+  n.innerHTML = notes.map(([, h]) => `<p>${h}</p>`).join('') + (notes.some(([k]) => k !== 'wait') ? '<button class="x" aria-label="Dismiss">×</button>' : '');
+  n.dataset.keys = notes.map(([k]) => k).join(',');
+  $('#mFoot').textContent = !tri
+    ? 'Each ring is a true-scale distance from your position, estimated from signal strength. One position can\'t give direction, so devices show as rings. Switch to Triangulate and walk to fix them as points.'
+    : M.src === 'tap' ? 'Tap the map where you are standing, wait a few seconds, then move 3–5 m and tap again. Cover two directions, not a straight line. Ellipses show 95% confidence; the shading shows where the selected device could be.'
+    : M.src === 'sim' ? 'Demo: walks a simulated loop through the scene so you can watch positions converge. Ellipses show 95% confidence; the shading shows where the selected device could be.'
+    : 'Walk a loop or an L-shape around the area. FRET records each device\'s signal at every spot and solves for the point that best explains the readings. GPS is good to a few metres outdoors; indoors, use Tap to place.';
+}
+function renderMapInfo() {
+  renderMapChrome();
+  const el = $('#mapInfo'), d = M.sel && S.state.devices.find(x => x.key === M.sel);
+  if (!d) { el.hidden = true; return; }
+  el.hidden = false;
+  const f = M.fits.get(d.key), r = d.range;
+  let body;
+  if (M.mode === 'tri') {
+    if (f && f.status === 'ok') {
+      const rel = relTo(f);
+      body = `<div class="big">${fmtM(rel.d)} ${rel.dir}<span class="q ${f.q}">${f.q.toUpperCase()}</span></div>
+        <div class="muted">from you, bearing ${rel.brg}° · ±${fmtM(f.r95)} (95%)</div>
+        <div class="faint">${f.n} readings from ${f.spots} spots${f.q === 'rough' ? '. Walk at right angles to your path to tighten this.' : ''}</div>`;
+    } else body = `<div class="big">Not located yet</div><div class="muted">${!f ? (M.sampling ? 'No readings yet. Keep moving.' : 'Start a walk to collect readings.') : f.status === 'few' ? `Readings from ${f.spots} of 4 spots needed. Keep moving.` : `Your spots are within ${fmtM(f.spread)} of each other. Move at least 3 m further.`}</div>`;
+  } else body = r ? `<div class="big">${fmtM(r.est)}</div><div class="muted">likely ${fmtM(r.min)}–${fmtM(r.max)} · direction unknown</div>` : '<div class="muted">No range yet</div>';
+  el.innerHTML = `<div class="hd"><div class="tico" style="--c:${cvar(d.category)}">${ico(d.category)}</div><div style="min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title(d))}</div><div class="faint mono">${esc(d.mac)}</div></div><button class="x" data-act="close" aria-label="Close">×</button></div>${body}<button class="btn" data-act="open">Device details</button>`;
+}
+$('#mapInfo').onclick = e => { const a = e.target.closest('[data-act]'); if (!a) return; if (a.dataset.act === 'close') { M.sel = null; render(); } else openDevice(M.sel); };
+$('#mNote').onclick = e => { if (e.target.closest('.x')) { $('#mNote').dataset.keys.split(',').forEach(k => M.dismissed.add(k)); render(); } };
+$('#mMode').onclick = e => { const b = e.target.closest('button'); if (!b) return; M.mode = b.dataset.v; if (M.mode !== 'tri') stopSim(); else if (M.sampling && M.src === 'sim') startSim(); render(); };
+$('#mSrc').onclick = e => { const b = e.target.closest('button'); if (b && !b.disabled) setSrc(b.dataset.v); };
+$('#mWalk').onclick = () => setSampling(!M.sampling);
+$('#mReset').onclick = () => confirmModal('Clear this walk?', 'Removes the recorded track, every reading taken on it and all triangulated positions. Case logs are not affected.', 'Clear walk', async () => resetWalk());
+$('#mIn').onclick = () => zoomAt(CW / 2, CH / 2, 0.75);
+$('#mOut').onclick = () => zoomAt(CW / 2, CH / 2, -0.75);
+$('#mMe').onclick = () => { M.follow = true; drawMap(); };
+
+// ---- pointer: drag to pan, wheel to zoom, click to select or place
+function zoomAt(sx, sy, dz) {
+  const [wx, wy] = unscr(sx, sy); M.view.z = clamp(M.view.z + dz, 14, 21.5);
+  const [wx2, wy2] = unscr(sx, sy); M.view.cx += wx - wx2; M.view.cy += wy - wy2;
+  if (Math.abs(sx - CW / 2) > 2 || Math.abs(sy - CH / 2) > 2) M.follow = false;
+  drawMap();
+}
+function hitTest(sx, sy) {
+  if (!S.state) return null;
+  let best = null, bd;
+  if (M.mode === 'tri') {
+    bd = 14;
+    for (const [k, f] of M.fits) if (f.status === 'ok') { const [x, y] = scr(f.x, f.y), dd = Math.hypot(x - sx, y - sy); if (dd < bd) { bd = dd; best = k; } }
+  } else {
+    bd = 5; const [cx, cy] = scr(M.me.x, M.me.y), rp = Math.hypot(sx - cx, sy - cy), m = mpp();
+    for (const d of S.state.devices) if (d.range) { const dd = Math.abs(rp - d.range.est / m); if (dd < bd) { bd = dd; best = d.key; } }
+  }
+  return best;
+}
+let drag = null;
+cv.addEventListener('wheel', e => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, clamp(-e.deltaY * 0.0025, -0.6, 0.6)); }, { passive: false });
+cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, cx: M.view.cx, cy: M.view.cy, moved: false }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e => {
+  const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, tip = $('#tip');
+  if (drag) {
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; M.follow = false; cv.classList.add('drag'); tip.style.opacity = 0; }
+    if (drag.moved) { const m = mpp(); M.view.cx = drag.cx - dx * m; M.view.cy = drag.cy + dy * m; drawMap(); }
+    return;
+  }
+  const h = hitTest(sx, sy);
+  if (h !== M.hover) { M.hover = h; drawMap(); }
+  const d = h && S.state.devices.find(x => x.key === h);
+  if (d) {
+    const f = M.fits.get(h), rel = M.mode === 'tri' && f?.status === 'ok' && relTo(f);
+    tip.innerHTML = `<b>${esc(title(d))}</b>${esc(d.category_label)} · ${rel ? `${fmtM(rel.d)} ${rel.dir} ±${fmtM(f.r95)}` : d.range ? `${fmtM(d.range.est)} (${fmtM(d.range.min)}–${fmtM(d.range.max)})` : ''}<br><span class="mono muted">${esc(d.mac)}</span>`;
+    tip.style.left = Math.min(sx + 14, CW - 240) + 'px'; tip.style.top = (sy + 14) + 'px'; tip.style.opacity = 1;
+  } else tip.style.opacity = 0;
+});
+cv.addEventListener('pointerup', e => {
+  cv.classList.remove('drag'); const d = drag; drag = null; if (!d || d.moved) return;
+  const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, h = hitTest(sx, sy);
+  if (h) { M.sel = h; render(); return; }
+  if (M.src === 'tap') { const [x, y] = unscr(sx, sy); setMe(x, y, null); render(); return; }
+  if (M.sel) { M.sel = null; render(); }
+});
+cv.addEventListener('pointerleave', () => { if (!drag) { M.hover = null; $('#tip').style.opacity = 0; drawMap(); } });
+new ResizeObserver(() => drawMap()).observe($('#mapwrap'));
 
 function renderSpark() {
   const a = S.act.slice(-60), W = 300, H = 70, N = Math.max(1, a.length - 1);
@@ -258,6 +626,7 @@ function renderDrawer(full) {
     <svg id="dspark" viewBox="0 0 300 46" preserveAspectRatio="none" style="margin-top:10px"></svg>
     <div class="muted" style="font-size:12px" id="dRssi"></div>
   </div>
+  <div class="dsec" style="--c:${c}"><h3>Triangulated position</h3><div id="dLoc" style="font-size:13px;line-height:1.5"></div></div>
   <div class="dsec" style="--c:${c}"><h3>Identification</h3>
     <dl class="kvs">
       ${kv('Make', esc(d.randomized && !d.ble?.company ? 'Not available (randomised address)' : d.make))}
@@ -310,6 +679,16 @@ function updateDrawerLive(d) {
     $('#dspark').innerHTML = `<path d="${p} L${W} ${H} L0 ${H}Z" fill="${cvar(d.category)}" opacity=".12"/><path d="${p}" fill="none" stroke="${cvar(d.category)}" stroke-width="2"/>`;
   }
   const cnt = $('#dCount'); if (cnt) cnt.textContent = d.count;
+  const loc = $('#dLoc');
+  if (loc) {
+    const f = M.fits.get(d.key);
+    if (f && f.status === 'ok') {
+      const rel = relTo(f), ll = toLL(f.x, f.y);
+      loc.innerHTML = `<div class="bigdist"><b style="font-size:24px">${fmtM(rel.d)} ${rel.dir}</b><span>±${fmtM(f.r95)} (95%)<span class="q ${f.q}">${f.q.toUpperCase()}</span></span></div>
+        <div class="muted">Bearing ${rel.brg}° from your position · ${f.n} readings from ${f.spots} spots</div>
+        <div class="mono faint" style="margin-top:4px">${ll.lat.toFixed(6)}, ${ll.lon.toFixed(6)}${M.geo === 'ok' ? '' : ' (demo site)'}</div>`;
+    } else loc.innerHTML = `<span class="muted">${f ? (f.status === 'few' ? `Readings from ${f.spots} of 4 spots so far.` : 'Readings are too close together. Move further.') : 'Not located. Use Triangulate on the Survey map and walk the area.'}</span>`;
+  }
 }
 
 // ---------------------------------------------------------------- case
@@ -448,10 +827,12 @@ async function tick() {
     S.state = st;
     const stat = st.source.status || {};
     S.act.push({ w: Math.round(stat.wfps || 0), b: Math.round(stat.bleps || 0) }); if (S.act.length > 120) S.act.shift();
+    sampleTick();
     toast(st.toast);
     render();
   } catch (e) { console.error(e); }
   finally { busy = false; }
 }
 hydrateIcons();
+startGeo();
 tick(); setInterval(tick, 1000);
