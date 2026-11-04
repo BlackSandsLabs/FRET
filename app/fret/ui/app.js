@@ -252,7 +252,7 @@ function label(text, x, y, color) {
 }
 function fitZoom(radiusM) { return clamp(Math.log2(156543.03392 * cosLat() / (radiusM / Math.max(80, Math.min(CW, CH) / 2 - 24))), 14, 21.5); }
 
-let drawQueued = false;
+let drawQueued = false, pendingLabel = null;
 function drawMap() { if (!drawQueued) { drawQueued = true; requestAnimationFrame(() => { drawQueued = false; paintMap(); }); } }
 function paintMap() {
   if (S.view !== 'survey' || !S.state || !sizeMap()) return;
@@ -262,8 +262,10 @@ function paintMap() {
   c.fillStyle = '#0b1219'; c.fillRect(0, 0, CW, CH);
   if (!M.tileOk) drawGrid();
   if (!M.noImagery) { drawTiles(); if (M.tileOk) { c.fillStyle = 'rgba(6,10,16,.3)'; c.fillRect(0, 0, CW, CH); } }
+  pendingLabel = null;
   if (M.mode === 'range') drawRange(); else drawTri();
   drawMe(); drawScale();
+  if (pendingLabel) label(...pendingLabel);   // labels go on top of every marker
   cv.classList.toggle('place', M.src === 'tap');
   $('#mAttr').textContent = M.tileOk ? 'Imagery © Esri, Maxar, Earthstar Geographics' : '';
 }
@@ -282,7 +284,7 @@ function drawRange() {
     c.fillStyle = hexA(col, .16); c.beginPath();
     c.arc(sx, sy, r.max / m, 0, Math.PI * 2); c.arc(sx, sy, r.min / m, 0, Math.PI * 2, true); c.fill();
     c.strokeStyle = col; c.lineWidth = 2.5; c.beginPath(); c.arc(sx, sy, r.est / m, 0, Math.PI * 2); c.stroke();
-    label(`${title(d)} · ${fmtM(r.est)}`, sx, sy - r.est / m, col);
+    pendingLabel = [`${title(d)} · ${fmtM(r.est)}`, sx, sy - r.est / m, col];
   }
 }
 
@@ -318,8 +320,7 @@ function drawTri() {
       const [mx, my] = scr(M.me.x, M.me.y), rel = relTo(f);
       c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 1.5; c.setLineDash([6, 5]);
       c.beginPath(); c.moveTo(mx, my); c.lineTo(x, y); c.stroke(); c.setLineDash([]);
-      label(`${fmtM(rel.d)} ${rel.dir} · ±${fmtM(f.r95)}`, (mx + x) / 2, (my + y) / 2, col);
-      label(title(d), x, y - 22, col);
+      pendingLabel = [`${title(d)} · ${fmtM(rel.d)} ${rel.dir} ±${fmtM(f.r95)}`, x, y - 22, col];
     }
   }
 }
